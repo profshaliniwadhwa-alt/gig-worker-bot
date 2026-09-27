@@ -52,6 +52,20 @@ def get_api_key():
     return os.getenv("GROQ_API_KEY")
 
 
+def find_pdfs():
+    """PDFs in the policies/ folder next to app.py; if that folder is missing or empty,
+    any PDF anywhere in the app's folder (so the upload layout does not matter)."""
+    base = os.path.dirname(os.path.abspath(__file__))
+    folder = os.path.join(base, PDF_DIR)
+    files = []
+    if os.path.isdir(folder):
+        files = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith(".pdf")]
+    if not files:
+        for root, _, names in os.walk(base):
+            files += [os.path.join(root, f) for f in names if f.lower().endswith(".pdf")]
+    return sorted(files)
+
+
 def law_name(path):
     return os.path.splitext(os.path.basename(path))[0].replace("_", " ")
 
@@ -59,7 +73,11 @@ def law_name(path):
 @st.cache_resource(show_spinner=False)
 def build_pipeline():
     """Load the laws, label and embed the passages, and set up retrieval + generation (runs once)."""
-    files = sorted(os.path.join(PDF_DIR, f) for f in os.listdir(PDF_DIR) if f.lower().endswith(".pdf"))
+    files = find_pdfs()
+    if not files:
+        st.error("No law PDFs found. Upload the four PDF files to the GitHub repository "
+                 "(inside a folder called 'policies', or next to app.py) and reboot the app.")
+        st.stop()
     docs = []
     for f in files:
         docs.extend(PyPDFLoader(f).load())
